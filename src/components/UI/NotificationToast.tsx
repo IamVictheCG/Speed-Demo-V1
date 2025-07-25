@@ -32,7 +32,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ notificati
   const Icon = iconMap[notification.type];
 
   return (
-    <div className={`max-w-sm w-full rounded-lg shadow-lg border p-4 ${colorMap[notification.type]} animate-slide-in`}>
+    <div className={`w-[500px] rounded-md shadow-md border px-6 py-3 ${colorMap[notification.type]} animate-slide-in`}>
       <div className="flex items-start">
         <div className="flex-shrink-0">
           <Icon className="h-5 w-5" />
