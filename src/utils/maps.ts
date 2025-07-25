@@ -3,11 +3,11 @@ import { Loader } from '@googlemaps/js-api-loader';
 
 // Google Maps configuration
 const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-if (!key) {
-  throw new Error(
-    'Missing key - map features will not work.'
-  );
-}
+// if (!key) {
+//   throw new Error(
+//     'Missing key - map features will not work.'
+//   );
+// }
 
 let googlePromise: Promise<typeof google>;
 export function loadGoogleAPI() {
