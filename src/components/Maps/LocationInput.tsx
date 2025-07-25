@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { initializePlacesAutocomplete, geocodeAddress, Location } from '../../utils/maps';
+import { loadGoogleAPI, geocodeAddress, Location } from '../../utils/maps';
 import { MapPin, Search, X } from 'lucide-react';
 
 interface LocationInputProps {
@@ -21,91 +21,68 @@ export const LocationInput: React.FC<LocationInputProps> = ({
   label,
   icon,
   className = '',
-  disabled = false
+  disabled = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [service, setService] = useState<google.maps.places.AutocompleteService | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const initAutocomplete = async () => {
-      if (!inputRef.current) return;
-
-      try {
-        const autocomplete = await initializePlacesAutocomplete(
-          inputRef.current,
-          (place) => {
-            if (place.geometry?.location) {
-              const location: Location = {
-                lat: place.geometry.location.lat(),
-                lng: place.geometry.location.lng(),
-                address: place.formatted_address || place.name || ''
-              };
-              
-              onChange(location.address || '');
-              onLocationSelect(location);
-              setShowSuggestions(false);
-            }
-          }
-        );
-        
-        autocompleteRef.current = autocomplete;
-      } catch (error) {
-        console.error('Error initializing autocomplete:', error);
-      }
+    const initService = async () => {
+      const google = await loadGoogleAPI();
+      setService(new google.maps.places.AutocompleteService());
     };
 
-    initAutocomplete();
+    initService();
+  }, []);
 
-    return () => {
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-    };
-  }, [onChange, onLocationSelect]);
+  useEffect(() => {
+    if (!service || value.length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    service.getPlacePredictions({ input: value }, (preds) => {
+      const descs = preds?.map(p => p.description!) || [];
+      setSuggestions(descs);
+      setShowSuggestions(descs.length > 0);
+    });
+  }, [value, service]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     onChange(newValue);
-    
-    // Show suggestions when typing
-    if (newValue.length > 2) {
-      setShowSuggestions(true);
-      // You could implement custom suggestions here if needed
-    } else {
-      setShowSuggestions(false);
+  };
+
+  const handleSelect = async (address: string) => {
+    onChange(address);
+    setShowSuggestions(false);
+    setIsLoading(true);
+    try {
+      const location = await geocodeAddress(address);
+      if (location) {
+        onLocationSelect(location);
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      await handleGeocodeSearch();
-    }
-  };
-
-  const handleGeocodeSearch = async () => {
-    if (!value.trim()) return;
-
-    setIsLoading(true);
-    try {
-      const location = await geocodeAddress(value);
-      if (location) {
-        onLocationSelect(location);
-        onChange(location.address || value);
-      }
-    } catch (error) {
-      console.error('Geocoding error:', error);
-    } finally {
-      setIsLoading(false);
-      setShowSuggestions(false);
+      await handleSelect(value);
     }
   };
 
   const clearInput = () => {
     onChange('');
+    setSuggestions([]);
     setShowSuggestions(false);
     inputRef.current?.focus();
   };
@@ -117,19 +94,19 @@ export const LocationInput: React.FC<LocationInputProps> = ({
           {label}
         </label>
       )}
-      
+
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           {icon || <MapPin className="h-5 w-5 text-gray-400" />}
         </div>
-        
+
         <input
           ref={inputRef}
           type="text"
           value={value}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => value.length > 2 && setShowSuggestions(true)}
+          onFocus={() => value.length > 2 && suggestions.length > 0 && setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           placeholder={placeholder}
           disabled={disabled}
@@ -140,7 +117,7 @@ export const LocationInput: React.FC<LocationInputProps> = ({
             ${className}
           `}
         />
-        
+
         <div className="absolute inset-y-0 right-0 flex items-center">
           {value && (
             <button
@@ -151,11 +128,11 @@ export const LocationInput: React.FC<LocationInputProps> = ({
               <X className="h-4 w-4" />
             </button>
           )}
-          
+
           {!value && (
             <button
               type="button"
-              onClick={handleGeocodeSearch}
+              onClick={() => handleSelect(value)}
               disabled={isLoading || !value.trim()}
               className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
             >
@@ -165,28 +142,30 @@ export const LocationInput: React.FC<LocationInputProps> = ({
         </div>
       </div>
 
-      {/* Custom suggestions dropdown (if needed) */}
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={index}
-              type="button"
-              onClick={() => {
-                onChange(suggestion);
-                setShowSuggestions(false);
-                handleGeocodeSearch();
-              }}
-              className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
-            >
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 text-gray-400 mr-2" />
-                <span className="text-sm text-gray-900">{suggestion}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      <div
+        className="suggestion-container"
+        onMouseDown={e => {
+          // Prevent the input from losing focus before a click is registered
+          e.preventDefault();
+        }}
+      >
+        {suggestions.map((s, index) => (
+          <div
+            key={index}
+            className="suggestion"
+            onClick={() => {
+              onChange(s);
+              setSuggestions([]);
+              setShowSuggestions(false);
+              inputRef.current?.blur();
+            }}
+          >
+            {s}
+          </div>
+        ))}
+      </div>
+    )}
     </div>
   );
 };

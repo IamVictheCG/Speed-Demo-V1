@@ -16,6 +16,7 @@ import {
   Car,
   Route
 } from 'lucide-react';
+import { Trip } from '../../types';
 
 export const BookingForm: React.FC = () => {
   const { user } = useAuth();
@@ -26,8 +27,8 @@ export const BookingForm: React.FC = () => {
     petFriendly: false,
     musicTheme: 'quiet' as 'quiet' | 'pop' | 'rock' | 'rnb'
   });
-  const [pickupLocation, setPickupLocation] = useState<Location | null>(null);
-  const [destinationLocation, setDestinationLocation] = useState<Location | null>(null);
+  const [pickupLocation, setPickupLocation] = useState<Location | undefined>(undefined);
+  const [destinationLocation, setDestinationLocation] = useState<Location | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [estimatedFare, setEstimatedFare] = useState<number | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
@@ -67,8 +68,8 @@ export const BookingForm: React.FC = () => {
 
     const tripData = {
       passengerId: user?.id || '1',
-      pickup: pickupLocation,
-      destination: destinationLocation,
+      pickup: pickupLocation as Location,
+      destination: destinationLocation as Location,
       fare: estimatedFare || 0,
       distance: routeInfo?.distance || 0,
       duration: routeInfo?.duration || 0,
@@ -76,7 +77,7 @@ export const BookingForm: React.FC = () => {
       musicTheme: formData.musicTheme
     };
 
-    createTrip(tripData);
+    createTrip(tripData as Trip);
     setLoading(false);
     
     addNotification({
@@ -109,8 +110,13 @@ export const BookingForm: React.FC = () => {
               <label className="text-sm font-medium text-gray-700">Pickup Location</label>
             </div>
             <LocationInput
-              value={formData.pickup}
-              onChange={(value) => setFormData(prev => ({ ...prev, pickup: value }))}
+              value={pickupLocation?.address || ''}
+              onChange={(text) => {
+                setPickupLocation(prev => 
+                  prev ? { ...prev, address: text } : { address: text, lat: 0, lng: 0 } as Location
+                );
+                setFormData(prev => ({ ...prev, pickup: text }));
+              }}
               onLocationSelect={(location) => {
                 setPickupLocation(location);
                 setFormData(prev => ({ ...prev, pickup: location.address || '' }));
@@ -127,8 +133,13 @@ export const BookingForm: React.FC = () => {
               <label className="text-sm font-medium text-gray-700">Destination</label>
             </div>
             <LocationInput
-              value={formData.destination}
-              onChange={(value) => setFormData(prev => ({ ...prev, destination: value }))}
+              value={destinationLocation?.address || ''}
+              onChange={(text) => {
+                setDestinationLocation(prev => 
+                  prev ? { ...prev, address: text } : { address: text, lat: 0, lng: 0 } as Location
+                );
+                setFormData(prev => ({ ...prev, destination: text }));
+              }}
               onLocationSelect={(location) => {
                 setDestinationLocation(location);
                 setFormData(prev => ({ ...prev, destination: location.address || '' }));

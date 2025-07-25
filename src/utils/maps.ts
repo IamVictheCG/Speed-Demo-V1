@@ -2,10 +2,23 @@
 import { Loader } from '@googlemaps/js-api-loader';
 
 // Google Maps configuration
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE';
+const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+if (!key) {
+  throw new Error(
+    'Missing key - map features will not work.'
+  );
+}
+
+let googlePromise: Promise<typeof google>;
+export function loadGoogleAPI() {
+  if (!googlePromise) {
+    googlePromise = mapLoader.load();
+  }
+  return googlePromise;
+}
 
 export const mapLoader = new Loader({
-  apiKey: GOOGLE_MAPS_API_KEY,
+  apiKey: key,
   version: 'weekly',
   libraries: ['places', 'geometry']
 });
@@ -28,7 +41,7 @@ export const initializeMap = async (
   center: Location,
   zoom: number = 13
 ): Promise<google.maps.Map> => {
-  const google = await mapLoader.load();
+  const google = await loadGoogleAPI();
   
   const map = new google.maps.Map(container, {
     center: { lat: center.lat, lng: center.lng },
@@ -119,7 +132,7 @@ export const createMarker = (
 // Geocoding - convert address to coordinates
 export const geocodeAddress = async (address: string): Promise<Location | null> => {
   try {
-    const google = await mapLoader.load();
+    const google = await loadGoogleAPI();
     const geocoder = new google.maps.Geocoder();
     
     const result = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
@@ -150,7 +163,7 @@ export const geocodeAddress = async (address: string): Promise<Location | null> 
 // Reverse geocoding - convert coordinates to address
 export const reverseGeocode = async (location: Location): Promise<string | null> => {
   try {
-    const google = await mapLoader.load();
+    const google = await loadGoogleAPI();
     const geocoder = new google.maps.Geocoder();
     
     const result = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
@@ -177,7 +190,7 @@ export const calculateRoute = async (
   travelMode: google.maps.TravelMode = google.maps.TravelMode.DRIVING
 ): Promise<RouteInfo | null> => {
   try {
-    const google = await mapLoader.load();
+    const google = await loadGoogleAPI();
     const directionsService = new google.maps.DirectionsService();
     
     const result = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
@@ -218,7 +231,7 @@ export const displayRoute = async (
   destination: Location
 ): Promise<google.maps.DirectionsRenderer | null> => {
   try {
-    const google = await mapLoader.load();
+    const google = await loadGoogleAPI();
     const directionsService = new google.maps.DirectionsService();
     const directionsRenderer = new google.maps.DirectionsRenderer({
       suppressMarkers: true,
@@ -288,17 +301,16 @@ export const getCurrentLocation = (): Promise<Location> => {
 // Initialize Places Autocomplete
 export const initializePlacesAutocomplete = async (
   input: HTMLInputElement,
-  onPlaceSelected: (place: google.maps.places.PlaceResult) => void,
-  bounds?: google.maps.LatLngBounds
+  onPlaceSelected: (place: google.maps.places.PlaceResult) => void
 ): Promise<google.maps.places.Autocomplete> => {
-  const google = await mapLoader.load();
-  
-  const autocomplete = new google.maps.places.Autocomplete(input, {
-    types: ['establishment', 'geocode'],
-    bounds,
-    componentRestrictions: { country: 'us' } // Adjust as needed
-  });
+  const google = await loadGoogleAPI();
 
+  const options: google.maps.places.AutocompleteOptions = {
+    types: ['establishment', 'geocode'],
+    // No componentRestrictions to allow global predictions
+  };
+
+  const autocomplete = new google.maps.places.Autocomplete(input, options);
   autocomplete.addListener('place_changed', () => {
     const place = autocomplete.getPlace();
     onPlaceSelected(place);
